@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Attendance Salary Calculator</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: system-ui, sans-serif;
+        color: #172033;
+        background: #f3f6fb;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 32px 16px;
+      }
+
+      main {
+        width: min(100%, 680px);
+        margin: 0 auto;
+        padding: 32px;
+        border: 1px solid #dce3ee;
+        border-radius: 16px;
+        background: #fff;
+        box-shadow: 0 12px 32px rgb(23 32 51 / 8%);
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(1.5rem, 5vw, 2rem);
+      }
+
+      .intro,
+      .assumptions {
+        color: #536078;
+        line-height: 1.5;
+      }
+
+      .fields {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+        margin: 24px 0;
+      }
+
+      label {
+        display: grid;
+        gap: 7px;
+        font-weight: 600;
+      }
+
+      input {
+        width: 100%;
+        padding: 11px 12px;
+        border: 1px solid #b8c3d4;
+        border-radius: 8px;
+        font: inherit;
+      }
+
+      input:focus {
+        border-color: #2257c7;
+        outline: 3px solid rgb(34 87 199 / 18%);
+      }
+
+      button {
+        width: 100%;
+        padding: 12px 16px;
+        border: 0;
+        border-radius: 8px;
+        background: #2257c7;
+        color: white;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: #1948aa;
+      }
+
+      .assumptions {
+        margin: 18px 0 0;
+        font-size: 0.9rem;
+      }
+
+      footer {
+        margin-top: 24px;
+        color: #536078;
+        font-size: 0.85rem;
+        text-align: center;
+      }
+
+      #results {
+        margin-top: 28px;
+        padding-top: 22px;
+        border-top: 1px solid #dce3ee;
+      }
+
+      #results h2 {
+        margin: 0 0 14px;
+        font-size: 1.25rem;
+      }
+
+      #results dl {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px 20px;
+        margin: 0;
+      }
+
+      #results dt {
+        color: #536078;
+      }
+
+      #results dd {
+        margin: 0;
+        font-weight: 700;
+        text-align: right;
+      }
+
+      #salary-payable {
+        color: #17643b;
+        font-size: 1.15rem;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      @media (max-width: 520px) {
+        main {
+          padding: 24px 18px;
+        }
+
+        .fields {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Attendance Salary Calculator</h1>
+      <p class="intro">Enter the monthly salary and attendance totals to calculate the salary after leave credit.</p>
+
+      <form id="salary-form">
+        <div class="fields">
+          <label for="monthly-salary">
+            Monthly salary
+            <input id="monthly-salary" name="monthlySalary" type="number" min="0" step="any" required>
+          </label>
+          <label for="absent-days">
+            Full absent days
+            <input id="absent-days" name="absentDays" type="number" min="0" step="any" value="0" required>
+          </label>
+          <label for="hcl-days">
+            Half-day absences (HCL)
+            <input id="hcl-days" name="hclDays" type="number" min="0" step="any" value="0" required>
+          </label>
+          <label for="late-count">
+            Late count
+            <input id="late-count" name="lateCount" type="number" min="0" step="1" value="0" required>
+          </label>
+          <label for="lc-count">
+            LC count
+            <input id="lc-count" name="lcCount" type="number" min="0" step="1" value="0" required>
+          </label>
+        </div>
+        <button type="submit">Calculate salary</button>
+      </form>
+
+      <p class="assumptions">
+        Calculation uses 22 official workdays and 1 day of monthly credit.
+        Every 3 lates count as 1 absence. LC counts only in complete groups of 6:
+        each group counts as 1 HCL (half-day absence), so 12 LC count as 1 full absence.
+        Incomplete LC groups do not count. Credit is applied before salary is deducted.
+      </p>
+
+      <section id="results" aria-live="polite" hidden>
+        <h2>Calculation result</h2>
+        <dl>
+          <dt>Total absence days</dt>
+          <dd id="total-absence"></dd>
+          <dt>Monthly credit remaining</dt>
+          <dd id="credit-remaining"></dd>
+          <dt>Unpaid absence days</dt>
+          <dd id="unpaid-absence"></dd>
+          <dt>Salary deduction</dt>
+          <dd id="salary-deduction"></dd>
+          <dt>Salary to be paid</dt>
+          <dd id="salary-payable"></dd>
+        </dl>
+      </section>
+      <footer>&copy; 2026 SUPERNOVA. All rights reserved.</footer>
+    </main>
+
+    <script>
+      const OFFICIAL_WORK_DAYS = 22;
+      const MONTHLY_CREDIT_DAYS = 1;
+      const LATES_PER_ABSENCE = 3;
+      const LC_PER_HCL = 6;
+      const HCL_ABSENCE_DAYS = 0.5;
+      const form = document.querySelector("#salary-form");
+      const results = document.querySelector("#results");
+      const numberFormat = new Intl.NumberFormat(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+
+        const values = new FormData(form);
+        const monthlySalary = Number(values.get("monthlySalary"));
+        const absentDays = Number(values.get("absentDays"));
+        const hclDays = Number(values.get("hclDays"));
+        const lateCount = Number(values.get("lateCount"));
+        const lcCount = Number(values.get("lcCount"));
+        const lcHcl = Math.floor(lcCount / LC_PER_HCL);
+
+        const totalAbsenceDays = Math.min(
+          OFFICIAL_WORK_DAYS,
+          absentDays +
+            (hclDays + lcHcl) * HCL_ABSENCE_DAYS +
+            lateCount / LATES_PER_ABSENCE
+        );
+        const creditUsed = Math.min(MONTHLY_CREDIT_DAYS, totalAbsenceDays);
+        const creditRemaining = MONTHLY_CREDIT_DAYS - creditUsed;
+        const unpaidAbsenceDays = Math.max(0, totalAbsenceDays - creditUsed);
+        const dailySalary = monthlySalary / OFFICIAL_WORK_DAYS;
+        const salaryDeduction = unpaidAbsenceDays * dailySalary;
+        const salaryPayable = monthlySalary - salaryDeduction;
+
+        document.querySelector("#total-absence").textContent = `${numberFormat.format(totalAbsenceDays)} days`;
+        document.querySelector("#credit-remaining").textContent = `${numberFormat.format(creditRemaining)} days`;
+        document.querySelector("#unpaid-absence").textContent = `${numberFormat.format(unpaidAbsenceDays)} days`;
+        document.querySelector("#salary-deduction").textContent = numberFormat.format(salaryDeduction);
+        document.querySelector("#salary-payable").textContent = numberFormat.format(salaryPayable);
+        results.hidden = false;
+      });
+    </script>
+  </body>
+</html>
