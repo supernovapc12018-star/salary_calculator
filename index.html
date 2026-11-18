@@ -147,13 +147,17 @@
   <body>
     <main>
       <h1>Attendance Salary Calculator</h1>
-      <p class="intro">Enter the monthly salary and attendance totals to calculate the salary after leave credit.</p>
+      <p class="intro">Enter the monthly salary, working days, and attendance totals to calculate salary deductions.</p>
 
       <form id="salary-form">
         <div class="fields">
           <label for="monthly-salary">
             Monthly salary
             <input id="monthly-salary" name="monthlySalary" type="number" min="0" step="any" required>
+          </label>
+          <label for="working-days">
+            Working days
+            <input id="working-days" name="workingDays" type="number" min="1" step="any" value="22" required>
           </label>
           <label for="absent-days">
             Full absent days
@@ -176,10 +180,10 @@
       </form>
 
       <p class="assumptions">
-        Calculation uses 22 official workdays and 1 day of monthly credit.
-        Every 3 lates count as 1 absence. LC counts only in complete groups of 6:
-        each group counts as 1 HCL (half-day absence), so 12 LC count as 1 full absence.
-        Incomplete LC groups do not count. Credit is applied before salary is deducted.
+        Salary per day is calculated using the entered working days, with 1 day of monthly credit.
+        Only complete groups of 3 lates count as 1 absence. LC counts only in complete groups
+        of 6: 6 LC count as 1 HCL (half-day absence), and 12 LC count as 1 full absence.
+        Incomplete groups do not count. Monthly credit is applied before salary is deducted.
       </p>
 
       <section id="results" aria-live="polite" hidden>
@@ -201,7 +205,6 @@
     </main>
 
     <script>
-      const OFFICIAL_WORK_DAYS = 22;
       const MONTHLY_CREDIT_DAYS = 1;
       const LATES_PER_ABSENCE = 3;
       const LC_PER_HCL = 6;
@@ -218,22 +221,24 @@
 
         const values = new FormData(form);
         const monthlySalary = Number(values.get("monthlySalary"));
+        const workingDays = Number(values.get("workingDays"));
         const absentDays = Number(values.get("absentDays"));
         const hclDays = Number(values.get("hclDays"));
         const lateCount = Number(values.get("lateCount"));
         const lcCount = Number(values.get("lcCount"));
+        const lateAbsences = Math.floor(lateCount / LATES_PER_ABSENCE);
         const lcHcl = Math.floor(lcCount / LC_PER_HCL);
 
         const totalAbsenceDays = Math.min(
-          OFFICIAL_WORK_DAYS,
+          workingDays,
           absentDays +
             (hclDays + lcHcl) * HCL_ABSENCE_DAYS +
-            lateCount / LATES_PER_ABSENCE
+            lateAbsences
         );
         const creditUsed = Math.min(MONTHLY_CREDIT_DAYS, totalAbsenceDays);
         const creditRemaining = MONTHLY_CREDIT_DAYS - creditUsed;
         const unpaidAbsenceDays = Math.max(0, totalAbsenceDays - creditUsed);
-        const dailySalary = monthlySalary / OFFICIAL_WORK_DAYS;
+        const dailySalary = monthlySalary / workingDays;
         const salaryDeduction = unpaidAbsenceDays * dailySalary;
         const salaryPayable = monthlySalary - salaryDeduction;
 
